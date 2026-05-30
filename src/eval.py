@@ -1,4 +1,6 @@
 import json
+import requests
+
 from datetime import datetime
 from pathlib import Path
 
@@ -9,6 +11,15 @@ from src.query import run_query_pipeline
 
 
 # =====================================================
+# OLLAMA CONFIG
+# =====================================================
+
+OLLAMA_URL = "http://localhost:11434/api/generate"
+
+OLLAMA_MODEL = "llama3"
+
+
+# =====================================================
 # TEST CASES
 # =====================================================
 
@@ -16,246 +27,470 @@ TEST_CASES = [
 
     {
         "case_id": 1,
+
         "bbl": "4049630075",
+
         "question": (
             "Does this site have an "
             "E designation and what "
             "does that mean?"
         ),
-        "expect_citation": [
-            "site_records",
-            "zr_09"
-        ],
-        "expect_abstain": False,
-        "expect_vintage_flag": True,
+
+        "evaluation_prompt": """
+A strong answer should:
+
+- Correctly identify whether the site has an E designation
+- Explain what an E designation means
+- Use grounded zoning/site information
+- Avoid hallucinations
+- Mention uncertainty if information is incomplete
+- Reference retrieved zoning/site records naturally
+
+A bad answer:
+- Invents zoning rules
+- Gives generic unsupported explanations
+- Ignores retrieved context
+""",
+
         "label": "E designation — hybrid"
     },
 
     {
         "case_id": 2,
+
         "bbl": "1016800019",
+
         "question": (
             "What is the maximum "
             "floor area ratio for "
             "this site?"
         ),
-        "expect_citation": [
-            "zr_"
-        ],
-        "expect_abstain": False,
-        "expect_vintage_flag": False,
-        "label": "FAR — prose retrieval"
+
+        "evaluation_prompt": """
+A strong answer should:
+
+- Correctly identify the FAR
+- Use retrieved zoning information
+- Clearly explain the regulation
+- Avoid unsupported assumptions
+
+A bad answer:
+- Gives incorrect FAR values
+- Hallucinates zoning regulations
+- Provides vague generic explanations
+""",
+
+        "label": "FAR retrieval"
     },
 
     {
         "case_id": 3,
+
         "bbl": "2037690057",
+
         "question": (
             "Is a rear yard required "
             "for this lot, and if so "
             "how deep?"
         ),
-        "expect_citation": [
-            "zr_"
-        ],
-        "expect_abstain": False,
-        "expect_vintage_flag": False,
-        "label": "Rear yard — prose retrieval"
+
+        "evaluation_prompt": """
+A strong answer should:
+
+- Correctly determine whether a rear yard is required
+- Mention required depth if available
+- Stay grounded in zoning text
+- Avoid fabricated dimensions
+
+A bad answer:
+- Invents requirements
+- Gives unsupported dimensions
+- Ignores missing information
+""",
+
+        "label": "Rear yard retrieval"
     },
 
     {
         "case_id": 4,
+
         "bbl": "3049930009",
+
         "question": (
             "What is the population "
             "density of the surrounding "
             "census tract?"
         ),
-        "expect_citation": [
-            "site_records"
-        ],
-        "expect_abstain": False,
-        "expect_vintage_flag": True,
-        "label": "Demographics — structured"
+
+        "evaluation_prompt": """
+A strong answer should:
+
+- Correctly report demographic information
+- Mention if data may be historical/vintage
+- Avoid pretending precision if unavailable
+
+A bad answer:
+- Invents demographic data
+- Ignores data uncertainty
+""",
+
+        "label": "Demographics"
     },
 
     {
         "case_id": 5,
+
         "bbl": "5004980028",
+
         "question": (
             "Can I place an air "
             "conditioning unit in "
             "the rear yard?"
         ),
-        "expect_citation": [
-            "zr_"
-        ],
-        "expect_abstain": False,
-        "expect_vintage_flag": False,
-        "label": "Permitted obstruction — prose"
+
+        "evaluation_prompt": """
+A strong answer should:
+
+- Correctly identify whether AC units are permitted
+- Ground answer in zoning regulations
+- Mention conditions or restrictions if present
+
+A bad answer:
+- Makes unsupported legal claims
+- Gives definitive permissions without evidence
+""",
+
+        "label": "Permitted obstruction"
     },
 
     {
         "case_id": 6,
+
         "bbl": "1016800019",
+
         "question": (
             "What was the maximum FAR "
             "for this zoning district "
             "in 2015?"
         ),
-        "expect_citation": [],
-        "expect_abstain": True,
-        "expect_vintage_flag": True,
-        "label": "Historical FAR — abstention required"
-    },
 
+        "evaluation_prompt": """
+A strong answer should:
+
+- Recognize this is a historical query
+- Abstain if historical information is unavailable
+- Clearly explain missing corpus support
+
+A bad answer:
+- Hallucinates historical FAR values
+- Pretends certainty
+""",
+
+        "label": "Historical FAR abstention"
+    },
     {
         "case_id": 7,
-        "bbl": "4049630075",
+
+        "bbl": "5004980028",
+
         "question": (
-            "What are the specific bulk "
-            "regulations for the Special "
-            "Flushing Waterfront District?"
+            "If HVAC equipment is generally "
+            "allowed in yards, why might it "
+            "still not be permitted in a "
+            "required rear yard?"
         ),
-        "expect_citation": [],
-        "expect_abstain": True,
-        "expect_vintage_flag": False,
-        "label": "Cross-ref gap — abstention required"
+
+        "evaluation_prompt": """
+    A strong answer should:
+
+    - Correctly identify that Section 23-311 allows HVAC equipment
+    generally in yards
+
+    - Correctly identify that Section 23-341 governs specifically
+    permitted rear yard obstructions
+
+    - Explain that HVAC/mechanical equipment is NOT listed as a
+    permitted rear yard obstruction under Section 23-341
+
+    - Correctly apply the legal interpretation rule that the
+    particular controls the general
+
+    - Mention cross-references between sections
+
+    - Avoid making unsupported legal conclusions
+
+    A bad answer:
+    - Claims HVAC equipment is always allowed everywhere
+    - Ignores the conflict between Sections 23-311 and 23-341
+    - Fails to explain why the more specific rear yard rule controls
+    - Hallucinates additional zoning exceptions
+    """,
+
+        "label": "Cross-reference conflict resolution"
     },
+
 
     {
         "case_id": 8,
-        "bbl": "3049930009",
+
+        "bbl": "4049630075",
+
         "question": (
-            "What zoning rules apply "
-            "when a section references "
-            "another section not covered "
-            "here?"
+            "Do the rear yard requirements "
+            "always apply in Special Purpose "
+            "Districts?"
         ),
-        "expect_citation": [
-            "zr_01"
-        ],
-        "expect_abstain": False,
-        "expect_vintage_flag": False,
-        "label": "Cross-reference handling — prose"
+
+        "evaluation_prompt": """
+    A strong answer should:
+
+    - Correctly identify that Section 23-344 states Special Purpose
+    District regulations may supersede standard rear yard rules
+
+    - Explain that alternative requirements may control in Special
+    Purpose Districts
+
+    - Clearly state that the corpus does NOT include the actual
+    Special Purpose District regulations themselves
+
+    - Partially abstain where appropriate
+
+    - Avoid pretending to know the exact Special District rules
+
+    A bad answer:
+    - Invents Special Purpose District regulations
+    - Claims rear yard rules always apply universally
+    - Fails to acknowledge missing corpus coverage
+    - Gives unsupported definitive conclusions
+    """,
+
+        "label": "Special district partial abstention"
     }
+
 ]
 
 
 # =====================================================
-# HELPERS
+# SAFE CHUNK EXTRACTION
 # =====================================================
 
-def check_citation_ok(
-    expected_citations,
-    answer,
-    retrieved_sources
+def build_retrieved_context(
+
+    retrieved_chunks
 ):
 
-    if not expected_citations:
-        return True
+    retrieved_context_parts = []
 
-    combined_text = (
-        answer.lower()
-        + " "
-        + " ".join(retrieved_sources).lower()
+    for chunk in retrieved_chunks:
+
+        source = (
+
+            chunk.get("source_file")
+
+            or chunk.get("source")
+
+            or "unknown_source"
+        )
+
+        content = (
+
+            chunk.get("chunk_text")
+
+            or chunk.get("text")
+
+            or chunk.get("content")
+
+            or chunk.get("document")
+
+            or chunk.get("chunk")
+
+            or str(chunk)
+        )
+
+        retrieved_context_parts.append(
+
+            f"SOURCE: {source}\n"
+            f"CONTENT:\n{content}"
+        )
+
+    return "\n\n".join(
+        retrieved_context_parts
     )
 
-    for expected in expected_citations:
 
-        if expected.lower() in combined_text:
-            return True
+# =====================================================
+# OLLAMA CALL
+# =====================================================
 
-    return False
+def call_ollama(
 
-
-def check_abstain_ok(
-    expect_abstain,
-    answer
+    prompt
 ):
 
-    answer_lower = answer.lower()
+    payload = {
 
-    abstain_phrases = [
+        "model": OLLAMA_MODEL,
 
-        "corpus does not contain",
+        "prompt": prompt,
 
-        "corpus does not support",
+        "stream": False,
 
-        "cannot be determined",
+        "format": "json"
+    }
 
-        "insufficient information",
+    response = requests.post(
 
-        "not enough information"
+        OLLAMA_URL,
+
+        json=payload
+    )
+
+    response.raise_for_status()
+
+    result = response.json()
+
+    return result["response"]
+
+
+# =====================================================
+# LLM JUDGE
+# =====================================================
+
+def evaluate_with_llm(
+
+    test_case,
+    pipeline_result
+):
+
+    answer = pipeline_result["response"]
+
+    route = pipeline_result["route"]
+
+    retrieved_chunks = pipeline_result[
+        "retrieved_chunks"
     ]
 
-    found_abstain = any(
-        phrase in answer_lower
-        for phrase in abstain_phrases
+    warnings = pipeline_result.get(
+        "warnings",
+        []
     )
 
-    if expect_abstain:
-        return found_abstain
+    retrieved_context = build_retrieved_context(
+        retrieved_chunks
+    )
 
-    return not found_abstain
+    warnings_text = "\n".join(warnings)
 
+    judge_prompt = f"""
+You are an expert evaluator for a legal zoning RAG system.
 
-def check_vintage_ok(
-    expect_vintage_flag,
-    answer
-):
+Your task is to evaluate whether the generated answer is:
 
-    if not expect_vintage_flag:
-        return True
+- correct
+- grounded
+- faithful to retrieved context
+- non-hallucinatory
+- appropriately abstaining when needed
+- legally cautious
+- complete and useful
 
-    answer_lower = answer.lower()
+==================================================
+QUESTION
+==================================================
 
-    vintage_keywords = [
+{test_case['question']}
 
-        "2018",
+==================================================
+EXPECTED BEHAVIOR
+==================================================
 
-        "historical",
+{test_case['evaluation_prompt']}
 
-        "superseded",
+==================================================
+RETRIEVED CONTEXT
+==================================================
 
-        "acs 2022",
+{retrieved_context}
 
-        "vintage",
+==================================================
+WARNINGS
+==================================================
 
-        "not exhaustive",
+{warnings_text}
 
-        "verify current status"
+==================================================
+GENERATED ANSWER
+==================================================
+
+{answer}
+
+==================================================
+ROUTE
+==================================================
+
+{route}
+
+==================================================
+SCORING INSTRUCTIONS
+==================================================
+
+Evaluate the answer carefully.
+
+Score from 0 to 10.
+
+Evaluation criteria:
+
+1. Correctness
+2. Grounding in retrieved context
+3. Hallucination avoidance
+4. Completeness
+5. Abstention quality
+6. Legal caution
+7. Clarity
+
+Return ONLY valid JSON.
+
+Format:
+
+{{
+    "score": 8,
+    "reasoning": "...",
+    "strengths": [
+        "...",
+        "..."
+    ],
+    "weaknesses": [
+        "...",
+        "..."
     ]
+}}
+"""
 
-    return any(
-        keyword in answer_lower
-        for keyword in vintage_keywords
-    )
+    try:
 
+        content = call_ollama(
+            judge_prompt
+        )
 
-def calculate_score(
-    citation_ok,
-    abstain_ok,
-    vintage_ok
-):
+        parsed = json.loads(content)
 
-    checks = [
-        citation_ok,
-        abstain_ok,
-        vintage_ok
-    ]
+    except Exception as e:
 
-    failed = sum(
-        not c for c in checks
-    )
+        parsed = {
 
-    if failed == 0:
-        return "PASS"
+            "score": 0,
 
-    if failed == 1:
-        return "PARTIAL"
+            "reasoning":
+            f"Failed evaluation: {str(e)}",
 
-    return "FAIL"
+            "strengths": [],
+
+            "weaknesses": [
+                "LLM judge failure"
+            ]
+        }
+
+    return parsed
 
 
 # =====================================================
@@ -266,25 +501,24 @@ def run_evaluation():
 
     console = Console()
 
-    results = []
-
-    summary = {
-        "pass": 0,
-        "partial": 0,
-        "fail": 0
-    }
-
     table = Table(
-        title="INTELLI-SITE EVALUATION"
+        title="LEGAL RAG EVALUATION"
     )
 
     table.add_column("#")
+
     table.add_column("Label")
+
     table.add_column("Route")
-    table.add_column("Abstained")
-    table.add_column("Citation OK")
-    table.add_column("Vintage OK")
+
     table.add_column("Score")
+
+    table.add_column("Reasoning")
+
+    results = []
+
+    total_score = 0
+
 
     for case in TEST_CASES:
 
@@ -293,153 +527,119 @@ def run_evaluation():
             f"{case['case_id']}..."
         )
 
-        pipeline_result = run_query_pipeline(
+        try:
 
-            bbl=case["bbl"],
+            pipeline_result = run_query_pipeline(
 
-            question=case["question"],
+                bbl=case["bbl"],
 
-            save_logs=False
-        )
+                question=case["question"],
 
-        answer = pipeline_result[
-            "response"
-        ]
+                save_logs=False,
 
-        route = pipeline_result[
-            "route"
-        ]
+                verbose=False
+            )
 
-        retrieved_chunks = pipeline_result[
-            "retrieved_chunks"
-        ]
+            llm_eval = evaluate_with_llm(
 
-        retrieved_sources = list(set([
+                case,
+                pipeline_result
+            )
 
-            chunk["source_file"]
+            score = llm_eval.get(
+                "score",
+                0
+            )
 
-            for chunk in retrieved_chunks
-        ]))
+            total_score += score
 
-        abstained = any(
+            result = {
 
-            phrase in answer.lower()
+                "case_id":
+                case["case_id"],
 
-            for phrase in [
+                "label":
+                case["label"],
 
-                "corpus does not contain",
+                "question":
+                case["question"],
 
-                "corpus does not support",
+                "route":
+                pipeline_result["route"],
 
-                "cannot be determined",
+                "response":
+                pipeline_result["response"],
 
-                "insufficient information",
+                "retrieved_chunks":
+                pipeline_result[
+                    "retrieved_chunks"
+                ],
 
-                "not enough information"
-            ]
-        )
+                "warnings":
+                pipeline_result[
+                    "warnings"
+                ],
 
-        citation_ok = check_citation_ok(
+                "llm_evaluation":
+                llm_eval
+            }
 
-            case["expect_citation"],
+            results.append(result)
 
-            answer,
+            table.add_row(
 
-            retrieved_sources
-        )
+                str(case["case_id"]),
 
-        abstain_ok = check_abstain_ok(
+                case["label"],
 
-            case["expect_abstain"],
+                pipeline_result["route"],
 
-            answer
-        )
+                f"{score}/10",
 
-        vintage_ok = check_vintage_ok(
+                llm_eval.get(
+                    "reasoning",
+                    ""
+                )[:80]
+            )
 
-            case["expect_vintage_flag"],
+        except Exception as e:
 
-            answer
-        )
+            table.add_row(
 
-        score = calculate_score(
+                str(case["case_id"]),
 
-            citation_ok,
+                case["label"],
 
-            abstain_ok,
+                "ERROR",
 
-            vintage_ok
-        )
+                "0/10",
 
-        if score == "PASS":
-            summary["pass"] += 1
+                str(e)[:80]
+            )
 
-        elif score == "PARTIAL":
-            summary["partial"] += 1
+            results.append({
 
-        else:
-            summary["fail"] += 1
+                "case_id":
+                case["case_id"],
 
-        result = {
+                "label":
+                case["label"],
 
-            "case_id":
-            case["case_id"],
+                "error":
+                str(e)
+            })
 
-            "label":
-            case["label"],
 
-            "bbl":
-            case["bbl"],
+    average_score = round(
 
-            "question":
-            case["question"],
+        total_score / len(TEST_CASES),
 
-            "route":
-            route,
+        2
+    )
 
-            "answer_preview":
-            answer[:200],
-
-            "retrieved_sources":
-            retrieved_sources,
-
-            "abstained":
-            abstained,
-
-            "citation_ok":
-            citation_ok,
-
-            "abstain_ok":
-            abstain_ok,
-
-            "vintage_ok":
-            vintage_ok,
-
-            "score":
-            score
-        }
-
-        results.append(result)
-
-        table.add_row(
-
-            str(case["case_id"]),
-
-            case["label"],
-
-            route,
-
-            str(abstained),
-
-            str(citation_ok),
-
-            str(vintage_ok),
-
-            score
-        )
 
     # =================================================
-    # WRITE JSON
+    # SAVE RESULTS
     # =================================================
 
     logs_dir = Path("logs")
@@ -450,25 +650,33 @@ def run_evaluation():
 
     output = {
 
-        "run_timestamp":
+        "timestamp":
         datetime.now().isoformat(),
 
-        "cases":
-        results,
+        "model":
+        OLLAMA_MODEL,
 
-        "summary":
-        summary
+        "average_score":
+        average_score,
+
+        "results":
+        results
     }
 
     output_path = (
+
         logs_dir
-        / "eval_results.json"
+        / "llm_eval_results.json"
     )
 
     with open(
+
         output_path,
+
         "w",
+
         encoding="utf-8"
+
     ) as f:
 
         json.dump(
@@ -480,30 +688,24 @@ def run_evaluation():
             indent=2
         )
 
+
     # =================================================
-    # PRINT SUMMARY
+    # DISPLAY SUMMARY
     # =================================================
 
     console.print(table)
 
     console.print(
-        f"\nPASS: "
-        f"{summary['pass']}/8"
+        f"\nAverage Score: "
+        f"{average_score}/10"
     )
 
     console.print(
-        f"PARTIAL: "
-        f"{summary['partial']}/8"
+        f"\nSaved results to:"
     )
 
     console.print(
-        f"FAIL: "
-        f"{summary['fail']}/8"
-    )
-
-    console.print(
-        f"\nSaved results to: "
-        f"{output_path}"
+        str(output_path)
     )
 
 

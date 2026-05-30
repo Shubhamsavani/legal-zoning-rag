@@ -1,335 +1,190 @@
-# Intelli-Site — Provenance-Aware Legal RAG for NYC Zoning Analysis
+# Intelli-Site — Legal Zoning RAG
 
-## Overview
-
-Intelli-Site is a legal Retrieval-Augmented Generation (RAG) system designed for NYC zoning and land-use analysis.
-
-The system combines:
-
-* structured site records
-* zoning regulation retrieval
-* local LLM reasoning
-* deterministic provenance-aware citations
-* evaluation and hallucination safeguards
-
-The goal is to build a legally cautious AI assistant that can answer zoning-related questions while grounding responses in retrieved regulatory text and structured parcel data.
+Provenance-aware RAG system for NYC zoning analysis. Takes a BBL and a natural language question, returns a grounded answer with citations, retrieval scores, and vintage warnings.
 
 ---
 
-# Key Features
+## Stack
 
-## Provenance-Aware Legal RAG
-
-Every retrieved zoning chunk contains:
-
-* source file
-* section title
-* amendment date
-* exact line ranges
-
-Responses include deterministic citations generated from retrieval metadata rather than hallucinated by the LLM.
-
-Example:
-
-```text
-Rear yard requirements are discussed in
-Section 23-342
-[zr_03_rear_yard_requirements.md | lines 2-23]
-```
+| Component | Choice |
+|---|---|
+| LLM | llama3 via Ollama |
+| Embeddings | all-MiniLM-L6-v2 |
+| Vector store | ChromaDB (local persistent) |
+| Structured data | pandas (site_records.csv + PLUTO) |
+| UI | Streamlit |
 
 ---
 
-## Legal-Specific Chunking Strategy
-
-Documents are chunked:
-
-* by zoning section boundaries (`##`)
-* with amendment metadata preserved
-* with line-aware provenance tracking
-* with cross-reference extraction
-
-This preserves legal context and improves retrieval precision.
-
----
-
-## Cross-Reference Gap Detection
-
-The ingest pipeline detects:
-
-* referenced zoning sections
-* missing referenced sections in corpus
-
-This allows the system to warn users when:
-
-* corpus coverage is incomplete
-* retrieved evidence may be insufficient
-
----
-
-## Vintage and Historical Safeguards
-
-The system identifies:
-
-* historical zoning text
-* superseded regulations
-* ACS demographic vintages
-* incomplete environmental designation datasets
-
-Responses explicitly warn when retrieved information may be outdated or incomplete.
-
----
-
-## Hybrid Structured + Prose Reasoning
-
-The pipeline combines:
-
-* structured parcel/site data
-* zoning regulation retrieval
-* legal reasoning using a local LLM
-
-Questions are routed into:
-
-* structured
-* prose
-* hybrid
-
-retrieval modes.
-
----
-
-# Architecture
-
-```text
-User Question
-      ↓
-Site Lookup (BBL)
-      ↓
-Question Routing
-      ↓
-Vector Retrieval (ChromaDB)
-      ↓
-Cross-Reference + Vintage Checks
-      ↓
-Prompt Assembly
-      ↓
-Local LLM (Ollama)
-      ↓
-Deterministic Citation Replacement
-      ↓
-Grounded Legal Response
-```
-
----
-
-# Tech Stack
-
-## Retrieval
-
-* ChromaDB
-* SentenceTransformers (`all-MiniLM-L6-v2`)
-
-## LLM
-
-* Ollama
-* Local inference pipeline
-
-## Data
-
-* NYC zoning markdown corpus
-* PLUTO-style structured site records
-
-## Evaluation
-
-* Custom evaluation harness
-* Provenance-aware scoring
-
----
-
-# Repository Structure
-
-```text
-.
-├── corpus/
-│   └── zoning/
-├── chroma_db/
-├── logs/
-├── notebooks/
-├── src/
-│   ├── llm/
-│   ├── retrieval/
-│   ├── routing/
-│   ├── site/
-│   ├── logging_utils/
-│   ├── query.py
-│   └── eval.py
-├── README.md
-├── requirements.txt
-└── .env.example
-```
-
----
-
-# Setup
-
-## 1. Clone Repository
+## Install
 
 ```bash
-git clone <repo_url>
-cd intelli-site
-```
-
----
-
-## 2. Create Virtual Environment
-
-```bash
-python -m venv .venv
-```
-
-Activate:
-
-### Windows
-
-```bash
-.venv\Scripts\activate
-```
-
-### Mac/Linux
-
-```bash
-source .venv/bin/activate
-```
-
----
-
-## 3. Install Dependencies
-
-```bash
+git clone https://github.com/Shubhamsavani/legal-zoning-rag
+cd legal-zoning-rag
 pip install -r requirements.txt
 ```
 
----
-
-## 4. Install Ollama
-
-Install:
-https://ollama.com
-
-Pull model:
+Pull the LLM:
 
 ```bash
 ollama pull llama3
+ollama serve
 ```
 
 ---
 
-## 5. Create `.env`
+## Environment variables
 
-Example:
+Create `.env` in the project root:
 
 ```env
 CHROMA_PATH=chroma_db
-OLLAMA_MODEL=llama3
+COLLECTION_NAME=zoning_docs
+EMBEDDING_MODEL=all-MiniLM-L6-v2
+RETRIEVAL_THRESHOLD=0.38
+TOP_K=5
+CORPUS_DIR=corpus/zoning
 OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3
 ```
 
 ---
 
-# Ingest Pipeline
+## Run — ingest first
 
-Run the notebook or ingest script to build the ChromaDB index.
+Build the ChromaDB index from the zoning corpus (run once):
 
-The ingest stage:
+```bash
+jupyter nbconvert --to notebook --execute notebooks/ingest_pipeline.ipynb
+```
 
-* parses markdown zoning documents
-* extracts metadata
-* builds provenance-aware chunks
-* creates cross-reference maps
-* stores embeddings in ChromaDB
+This produces `chroma_db/` and `chroma_db/cross_ref_map.json`.
 
 ---
 
-# Running Queries
-
-Example:
+## Run — CLI
 
 ```bash
 python -m src.query \
---bbl 4049630075 \
---question "What are the rear yard requirements for this property?"
+  --bbl 4049630075 \
+  --question "Does this site have an E designation and what does that mean?"
 ```
 
----
-
-# Evaluation
-
-Run the evaluation harness:
+Optional flags:
 
 ```bash
-python -m src.eval
+--top-k 5          # chunks to retrieve (default: 5)
+--threshold 0.38   # similarity cutoff (default: 0.38)
+--no-log           # skip writing log file
+--verbose          # print pipeline steps
 ```
 
-The evaluation pipeline tests:
-
-* retrieval quality
-* abstention behavior
-* citation grounding
-* historical/vintage handling
-* cross-reference gaps
-
 ---
 
-# Current Limitations
+## Run — Streamlit UI
 
-* Dense vector retrieval only (BM25 hybrid retrieval planned)
-* Small zoning corpus
-* Limited commercial district coverage
-* No frontend/UI yet
-* No reranking stage yet
-
----
-
-# Planned Improvements
-
-* Hybrid BM25 + vector retrieval
-* Cross-encoder reranking
-* Query expansion
-* Applicability-aware retrieval
-* Graph-based cross-reference traversal
-* Frontend citation highlighting
-* Structured provenance citations
-* Automated benchmark suite
-
----
-
-# Why This Project Matters
-
-Legal and zoning workflows require:
-
-* grounded answers
-* traceable evidence
-* abstention when evidence is insufficient
-* awareness of historical amendments and missing references
-
-This project explores how provenance-aware RAG systems can improve reliability and transparency in legal AI applications.
-
----
-
-# Example Evaluation Snapshot
-
-```text
-PASS: 2/8
-PARTIAL: 3/8
-FAIL: 3/8
+```bash
+streamlit run app.py
 ```
 
-The current system already demonstrates:
-
-* grounded citation generation
-* legal abstention behavior
-* cross-reference awareness
-* provenance-aware retrieval
-
-Further improvements are focused on retrieval quality and applicability reasoning.
+The UI renders answers with clickable citation pills. Clicking a citation opens the source markdown file with the cited lines highlighted.
 
 ---
+
+## Run — evaluation
+
+```bash
+python -m src.eval_
+```
+
+With LLM judge disabled (faster):
+
+```bash
+python -m src.eval_ --no-judge
+```
+
+Single case debug:
+
+```bash
+python -m src.eval_ --case 4
+```
+
+Results written to `logs/eval_results.json`.
+
+---
+
+## Retrieval transparency
+
+Every query returns and logs:
+
+```json
+{
+  "bbl": "4049630075",
+  "question": "...",
+  "route": "hybrid",
+  "retrieved_chunks": [
+    {
+      "citation_id": "SOURCE_1",
+      "source_file": "zr_09_ceqr_e_designations.md",
+      "section_title": "What is an (E) Designation?",
+      "start_line": 14,
+      "end_line": 28,
+      "distance": 0.248
+    }
+  ],
+  "warnings": ["(E) corpus data is from Feb 2018 — verify with NYC OER"],
+  "response": "..."
+}
+```
+
+---
+
+## Project structure
+
+```
+corpus/
+  zoning/          ← 10 NYC Zoning Resolution excerpts (.md)
+  structured/      ← site_records.csv, pluto_25v4.csv
+
+src/
+  routing/         ← router.py (LLM-based, llama3)
+  retrieval/       ← retriever.py, vintage_checks.py, citation_postprocessor.py
+  llm/             ← ollama_client.py, prompt_builder.py
+  site/            ← lookup.py, formatter.py
+  logging_utils/   ← logger.py
+  query.py         ← main pipeline entrypoint (run_query_pipeline)
+  eval_.py         ← 3-layer evaluation (deterministic + heuristic + LLM judge)
+
+notebooks/
+  ingest_pipeline.ipynb   ← chunking + embedding + ChromaDB build
+
+app.py             ← Streamlit UI
+reasoning.md       ← design decisions
+requirements.txt
+.env.example
+```
+
+---
+
+## Known limitations
+
+- Applicability reasoning across zoning districts is imperfect when relevant rules span multiple sections
+- Historical/vintage questions require the corpus to contain multiple amendment snapshots — it does not
+- Retrieval quality is sensitive to chunking strategy; subsection-level splits were tested and rejected (fragmented legal context)
+- llama3 at Q4 quantization introduces occasional hallucination under weak retrieval — the prompt enforces explicit abstention to mitigate this
+
+---
+
+# Future Improvements
+
+The single most important future improvement would be:
+
+* Experimenting with chunking strategies
+
+Different legal chunking approaches produced significantly different retrieval behavior and grounding quality during experimentation.
+
+---
+
+# Notes
+
+A second experimental evaluation pipeline using LLM-based judging/prompts was explored, but deterministic behavioral evaluation was ultimately preferred for transparency and reproducibility.
