@@ -4,11 +4,28 @@ from chromadb.utils.embedding_functions import (
     SentenceTransformerEmbeddingFunction
 )
 
+from dotenv import load_dotenv
 
-CHROMA_PATH = "chroma_db"
+import os
+
+
+# =====================================
+# LOAD ENV
+# =====================================
+
+load_dotenv()
+
+CHROMA_PATH = os.getenv(
+    "CHROMA_PATH",
+    "chroma_db"
+)
 
 COLLECTION_NAME = "zoning_docs"
 
+
+# =====================================
+# EMBEDDING FUNCTION
+# =====================================
 
 embedding_function = (
     SentenceTransformerEmbeddingFunction(
@@ -17,22 +34,35 @@ embedding_function = (
 )
 
 
+# =====================================
+# CHROMA CLIENT
+# =====================================
+
 client = chromadb.PersistentClient(
     path=CHROMA_PATH
 )
 
-
 collection = client.get_collection(
+
     name=COLLECTION_NAME,
+
     embedding_function=embedding_function
 )
 
 
+# =====================================
+# MAIN RETRIEVAL FUNCTION
+# =====================================
+
 def retrieve_chunks(
+
     question: str,
+
     top_k: int = 5,
+
     threshold: float = 0.55
-) -> list:
+
+):
 
     results = collection.query(
 
@@ -49,70 +79,123 @@ def retrieve_chunks(
 
     distances = results["distances"][0]
 
-    for document, metadata, distance in zip(
-        documents,
-        metadatas,
-        distances
-    ):
+    ids = results["ids"][0]
 
-        similarity = 1 - distance
+    for idx in range(len(documents)):
 
-        if similarity < threshold:
+        distance = distances[idx]
+
+        # ---------------------------------
+        # Distance filtering
+        # ---------------------------------
+
+        if distance > threshold:
             continue
+
+        document = documents[idx]
+
+        metadata = metadatas[idx]
+
+        chunk_id = ids[idx]
+
+        # ---------------------------------
+        # Deterministic citation ID
+        # ---------------------------------
+
+        citation_id = (
+            f"SOURCE_{len(retrieved_chunks)+1}"
+        )
 
         retrieved_chunks.append({
 
-            "text": document,
+            "citation_id":
+            citation_id,
 
-            "source_file": metadata.get(
+            "chunk_id":
+            chunk_id,
+
+            "text":
+            document,
+
+            "distance":
+            distance,
+
+            "source_file":
+            metadata.get(
                 "source_file"
             ),
 
-            "section_title": metadata.get(
+            "section_title":
+            metadata.get(
                 "section_title"
             ),
 
-            "last_amended": metadata.get(
+            "last_amended":
+            metadata.get(
                 "last_amended"
             ),
 
-            "similarity": round(
-                similarity,
-                4
+            "start_line":
+            metadata.get(
+                "start_line"
             ),
 
-            "has_cross_ref": metadata.get(
-                "has_cross_ref",
-                False
+            "end_line":
+            metadata.get(
+                "end_line"
+            ),
+
+            "has_cross_ref":
+            metadata.get(
+                "has_cross_ref"
             )
         })
 
     return retrieved_chunks
 
-# # test
+
+# =====================================
+# TEST BLOCK
+# =====================================
+
 # if __name__ == "__main__":
 
-#     results = retrieve_chunks(
-
-#         question="What are rear yard requirements in R6 districts?",
-
-#         top_k=5,
-
-#         threshold=0.30
+#     question = (
+#         "What are rear yard "
+#         "requirements?"
 #     )
 
-#     for idx, chunk in enumerate(results, start=1):
+#     chunks = retrieve_chunks(
+#         question=question
+#     )
 
-#         print("\n" + "=" * 80)
+#     print("\n=== RETRIEVED CHUNKS ===\n")
 
-#         print(f"RESULT {idx}")
+#     for chunk in chunks:
 
-#         print(f"Similarity: {chunk['similarity']}")
+#         print(
+#             f"{chunk['citation_id']}"
+#         )
 
-#         print(f"Source: {chunk['source_file']}")
+#         print(
+#             f"Source: "
+#             f"{chunk['source_file']}"
+#         )
 
-#         print(f"Section: {chunk['section_title']}")
+#         print(
+#             f"Lines: "
+#             f"{chunk['start_line']}"
+#             f"-"
+#             f"{chunk['end_line']}"
+#         )
 
-#         print("\nTEXT:\n")
+#         print(
+#             f"Distance: "
+#             f"{chunk['distance']}"
+#         )
 
-#         print(chunk["text"][:1000])
+#         print(
+#             chunk["text"][:300]
+#         )
+
+#         print("\n" + "="*60 + "\n")

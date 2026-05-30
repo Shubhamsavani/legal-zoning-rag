@@ -55,10 +55,26 @@ def build_prompt(
     )
 
     prompt_parts.append(
+        "If a section explicitly states "
+        "applicable zoning districts, "
+        "do not apply those regulations "
+        "to other district types unless "
+        "the retrieved text explicitly "
+        "authorizes that extension."
+    )
+
+    prompt_parts.append(
         "Do not infer that a regulation "
         "is permitted, prohibited, or "
         "inapplicable unless the retrieved "
         "text explicitly supports that conclusion."
+    )
+    
+    prompt_parts.append(
+        "When district applicability is "
+        "unclear, state that applicability "
+        "cannot be determined from the "
+        "retrieved corpus."
     )
 
     prompt_parts.append(
@@ -86,6 +102,27 @@ def build_prompt(
         "Cite relevant section titles "
         "and section numbers whenever possible."
     )
+
+    prompt_parts.append(
+        "When using retrieved evidence "
+        "in your answer, cite the "
+        "corresponding Citation ID "
+        "in square brackets like "
+        "[SOURCE_1]."
+    )
+
+    prompt_parts.append(
+        "Do NOT invent citations, "
+        "line numbers, filenames, "
+        "or section references."
+    )
+
+    prompt_parts.append(
+        "Only use Citation IDs that were "
+        "explicitly provided in the "
+        "retrieved zoning text."
+    )
+
     # =================================================
     # ROUTING MODE
     # =================================================
@@ -99,8 +136,10 @@ def build_prompt(
     # =================================================
 
     prompt_parts.append(
-        f"\n{site_context}"
+        f"\n=== SITE CONTEXT ===\n"
     )
+
+    prompt_parts.append(site_context)
 
     # =================================================
     # VINTAGE WARNINGS
@@ -119,21 +158,18 @@ def build_prompt(
             )
 
     # =================================================
-    # RETRIEVED LEGAL TEXT
+    # RETRIEVED ZONING TEXT
     # =================================================
 
     prompt_parts.append(
         "\n=== RETRIEVED ZONING TEXT ==="
     )
 
-    for idx, chunk in enumerate(
-        retrieved_chunks,
-        start=1
-    ):
+    for chunk in retrieved_chunks:
 
-        similarity = chunk.get(
-            "similarity",
-            0
+        citation_id = chunk.get(
+            "citation_id",
+            "UNKNOWN_SOURCE"
         )
 
         source_file = chunk.get(
@@ -151,34 +187,52 @@ def build_prompt(
             "unknown"
         )
 
+        start_line = chunk.get(
+            "start_line",
+            "unknown"
+        )
+
+        end_line = chunk.get(
+            "end_line",
+            "unknown"
+        )
+
+        distance = chunk.get(
+            "distance",
+            "unknown"
+        )
+
         text = chunk.get(
             "text",
             ""
         )
 
         prompt_parts.append(
-            f"\n--- CHUNK {idx} ---"
+            f"""
+--------------------------------------------------
+Citation ID:
+{citation_id}
+
+Source File:
+{source_file}
+
+Section:
+{section_title}
+
+Last Amended:
+{last_amended}
+
+Lines:
+{start_line}-{end_line}
+
+Similarity Distance:
+{distance}
+
+Retrieved Text:
+{text}
+--------------------------------------------------
+"""
         )
-
-        prompt_parts.append(
-            f"Similarity: {similarity}"
-        )
-
-        prompt_parts.append(
-            f"Source File: {source_file}"
-        )
-
-        prompt_parts.append(
-            f"Section: {section_title}"
-        )
-
-        prompt_parts.append(
-            f"Last Amended: {last_amended}"
-        )
-
-        prompt_parts.append("\nTEXT:\n")
-
-        prompt_parts.append(text)
 
     # =================================================
     # USER QUESTION
@@ -191,7 +245,7 @@ def build_prompt(
     prompt_parts.append(question)
 
     # =================================================
-    # FINAL INSTRUCTIONS
+    # RESPONSE INSTRUCTIONS
     # =================================================
 
     prompt_parts.append(
@@ -219,9 +273,26 @@ def build_prompt(
         "the answer."
     )
 
+    prompt_parts.append(
+        "When making a factual or legal "
+        "statement derived from retrieved "
+        "text, include the corresponding "
+        "Citation ID like [SOURCE_1]."
+    )
+
+    prompt_parts.append(
+        "Do not use Citation IDs unless "
+        "the answer actually relied on "
+        "that retrieved text."
+    )
+
     return "\n".join(prompt_parts)
 
-# test
+
+# =================================================
+# TEST BLOCK
+# =================================================
+
 from src.site.lookup import lookup_site
 
 from src.site.formatter import (
@@ -240,40 +311,40 @@ from src.retrieval.vintage_checks import (
     generate_vintage_warnings
 )
 
-# # test
-# if __name__ == "__main__":
 
-#     question = (
-#         "What are the rear yard "
-#         "requirements for this site?"
-#     )
+if __name__ == "__main__":
 
-#     route = route_question(question)
+    question = (
+        "What are the rear yard "
+        "requirements for this site?"
+    )
 
-#     site = lookup_site(
-#         "4049630075"
-#     )
+    route = route_question(question)
 
-#     site_context = format_site_context(
-#         site
-#     )
+    site = lookup_site(
+        "4049630075"
+    )
 
-#     chunks = retrieve_chunks(
-#         question=question,
-#         top_k=5,
-#         threshold=0.55
-#     )
+    site_context = format_site_context(
+        site
+    )
 
-#     warnings = generate_vintage_warnings(
-#         chunks
-#     )
+    chunks = retrieve_chunks(
+        question=question,
+        top_k=5,
+        threshold=0.55
+    )
 
-#     prompt = build_prompt(
-#         question=question,
-#         route=route,
-#         site_context=site_context,
-#         retrieved_chunks=chunks,
-#         warnings=warnings
-#     )
+    warnings = generate_vintage_warnings(
+        chunks
+    )
 
-#     print(prompt[:6000])
+    prompt = build_prompt(
+        question=question,
+        route=route,
+        site_context=site_context,
+        retrieved_chunks=chunks,
+        warnings=warnings
+    )
+
+    print(prompt[:8000])
