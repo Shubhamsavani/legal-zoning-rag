@@ -1,0 +1,191 @@
+{
+  "zr_01_rules_of_construction.md::12-01": {
+    "section_id": "12-01",
+    "source_file": "zr_01_rules_of_construction.md",
+    "section_title": "Rules Applying to Text of Resolution",
+    "section_refs": [
+      "12-02"
+    ],
+    "article_refs": [
+      "I",
+      "II",
+      "III",
+      "IV"
+    ],
+    "appendix_refs": [],
+    "is_historical": false
+  },
+  "zr_02_definitions_key.md::12-10 (Excerpt)": {
+    "section_id": "12-10 (Excerpt)",
+    "source_file": "zr_02_definitions_key.md",
+    "section_title": "Selected Definitions",
+    "section_refs": [
+      "12-10"
+    ],
+    "article_refs": [
+      "I"
+    ],
+    "appendix_refs": [],
+    "is_historical": false
+  },
+  "zr_03_rear_yard_requirements.md::23-342": {
+    "section_id": "23-342",
+    "source_file": "zr_03_rear_yard_requirements.md",
+    "section_title": "Rear Yard Requirements",
+    "section_refs": [
+      "23-341",
+      "23-344"
+    ],
+    "article_refs": [],
+    "appendix_refs": [],
+    "is_historical": false
+  },
+  "zr_03_rear_yard_requirements.md::23-343": {
+    "section_id": "23-343",
+    "source_file": "zr_03_rear_yard_requirements.md",
+    "section_title": "Rear Yard Equivalent Requirements",
+    "section_refs": [
+      "23-342"
+    ],
+    "article_refs": [],
+    "appendix_refs": [],
+    "is_historical": false
+  },
+  "zr_03_rear_yard_requirements.md::23-344": {
+    "section_id": "23-344",
+    "source_file": "zr_03_rear_yard_requirements.md",
+    "section_title": "Additional Rear Yard Modifications",
+    "section_refs": [
+      "23-711"
+    ],
+    "article_refs": [
+      "VII"
+    ],
+    "appendix_refs": [],
+    "is_historical": false
+  },
+  "zr_04_permitted_obstructions_rear_yard.md::23-341": {
+    "section_id": "23-341",
+    "source_file": "zr_04_permitted_obstructions_rear_yard.md",
+    "section_title": "Permitted Obstructions in Required Rear Yards or Rear Yard Equivalents",
+    "section_refs": [
+      "12-01(a)",
+      "26-50"
+    ],
+    "article_refs": [
+      "II"
+    ],
+    "appendix_refs": [],
+    "is_historical": false
+  },
+  "zr_05_floor_area_R6_R12_current.md::23-22": {
+    "section_id": "23-22",
+    "source_file": "zr_05_floor_area_R6_R12_current.md",
+    "section_title": "Floor Area Regulations for R6 Through R12 Districts",
+    "section_refs": [
+      "12-10",
+      "23-154",
+      "23-90",
+      "24-01"
+    ],
+    "article_refs": [
+      "II"
+    ],
+    "appendix_refs": [
+      "F"
+    ],
+    "is_historical": false
+  },
+  "zr_06_floor_area_R6_R10_SUPERSEDED_2019.md::23-22": {
+    "section_id": "23-22",
+    "source_file": "zr_06_floor_area_R6_R10_SUPERSEDED_2019.md",
+    "section_title": "Floor Area Regulations for R6 Through R10 Districts",
+    "section_refs": [
+      "23-90"
+    ],
+    "article_refs": [
+      "II"
+    ],
+    "appendix_refs": [],
+    "is_historical": true
+  },
+  "zr_07_front_yard_requirements.md::23-321": {
+    "section_id": "23-321",
+    "source_file": "zr_07_front_yard_requirements.md",
+    "section_title": "Basic Front Yard Requirements in R1 Through R5 Districts",
+    "section_refs": [
+      "23-311",
+      "23-312",
+      "23-613"
+    ],
+    "article_refs": [],
+    "appendix_refs": [],
+    "is_historical": false
+  },
+  "zr_07_front_yard_requirements.md::23-322": {
+    "section_id": "23-322",
+    "source_file": "zr_07_front_yard_requirements.md",
+    "section_title": "Front Yard Requirements for R6 Through R12 Districts",
+    "section_refs": [
+      "23-431",
+      "23-433"
+    ],
+    "article_refs": [],
+    "appendix_refs": [],
+    "is_historical": false
+  },
+  "zr_08_permitted_obstructions_all_yards.md::23-311": {
+    "section_id": "23-311",
+    "source_file": "zr_08_permitted_obstructions_all_yards.md",
+    "section_title": "Permitted Obstructions in All Yards, Courts and Open Areas",
+    "section_refs": [
+      "23-341",
+      "26-50"
+    ],
+    "article_refs": [
+      "II"
+    ],
+    "appendix_refs": [],
+    "is_historical": false
+  },
+  "zr_09_ceqr_e_designations.md::UNKNOWN": {
+    "section_id": "UNKNOWN",
+    "source_file": "zr_09_ceqr_e_designations.md",
+    "section_title": "UNKNOWN",
+    "section_refs": [],
+    "article_refs": [],
+    "appendix_refs": [
+      "C"
+    ],
+    "is_historical": false
+  },
+  "zr_10_height_setback_R6_R12.md::23-431": {
+    "section_id": "23-431",
+    "source_file": "zr_10_height_setback_R6_R12.md",
+    "section_title": "Street Wall Location Requirements",
+    "section_refs": [],
+    "article_refs": [],
+    "appendix_refs": [],
+    "is_historical": false
+  },
+  "zr_10_height_setback_R6_R12.md::23-432": {
+    "section_id": "23-432",
+    "source_file": "zr_10_height_setback_R6_R12.md",
+    "section_title": "Height and Setback Requirements",
+    "section_refs": [
+      "23-73"
+    ],
+    "article_refs": [],
+    "appendix_refs": [],
+    "is_historical": false
+  },
+  "zr_10_height_setback_R6_R12.md::23-433": {
+    "section_id": "23-433",
+    "source_file": "zr_10_height_setback_R6_R12.md",
+    "section_title": "Standard Setback Regulations",
+    "section_refs": [],
+    "article_refs": [],
+    "appendix_refs": [],
+    "is_historical": false
+  }
+}

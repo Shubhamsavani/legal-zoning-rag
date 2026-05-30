@@ -14,7 +14,6 @@ LOG_DIR.mkdir(
 def write_log(
     bbl: str,
     question: str,
-    route: str,
     retrieved_chunks: list,
     warnings: list,
     response: str
@@ -37,8 +36,6 @@ def write_log(
         "bbl": bbl,
 
         "question": question,
-
-        "route": route,
 
         "warnings": warnings,
 
@@ -70,8 +67,6 @@ def write_log(
 #         bbl="4049630075",
 
 #         question="What are rear yard requirements?",
-
-#         route="prose",
 
 #         retrieved_chunks=[
 

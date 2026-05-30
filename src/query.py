@@ -9,10 +9,6 @@ from src.site.formatter import (
     format_site_context
 )
 
-from src.routing.router import (
-    route_question
-)
-
 from src.retrieval.retriever import (
     retrieve_chunks
 )
@@ -22,7 +18,7 @@ from src.retrieval.vintage_checks import (
 )
 
 from src.llm.prompt_builder import (
-    build_prompt
+    build_prompt_payload
 )
 
 from src.llm.ollama_client import (
@@ -37,6 +33,35 @@ from src.retrieval.citation_postprocessor import (
     replace_citation_placeholders
 )
 
+from src.routing.query_classifier import (
+    classify_query
+)
+
+
+# =====================================================
+# BUILD FINAL MODEL PROMPT
+# =====================================================
+
+def assemble_full_prompt(
+
+    system_prompt: str,
+
+    user_prompt: str,
+
+    site_context: str
+):
+
+    return f"""
+{system_prompt}
+
+=== SITE CONTEXT ===
+
+{site_context}
+
+
+{user_prompt}
+"""
+
 
 # =====================================================
 # CORE PIPELINE FUNCTION
@@ -50,7 +75,7 @@ def run_query_pipeline(
 
     top_k: int = 5,
 
-    threshold: float = 0.55,
+    threshold: float = 0.80,
 
     save_logs: bool = True,
 
@@ -58,11 +83,26 @@ def run_query_pipeline(
 ):
 
     # =====================================
+    # QUERY CLASSIFICATION
+    # =====================================
+
+    query_type = classify_query(
+        question
+    )
+
+    if verbose:
+
+        print(
+            f"\nQUERY TYPE: "
+            f"{query_type}"
+        )
+
+    # =====================================
     # SITE LOOKUP
     # =====================================
 
     if verbose:
-        print("1. Looking up site data...")
+        print("\n1. Looking up site data...")
 
     site = lookup_site(bbl)
 
@@ -70,25 +110,11 @@ def run_query_pipeline(
         print("✓ Site lookup complete")
 
     # =====================================
-    # ROUTE QUESTION
-    # =====================================
-
-    if verbose:
-        print("\n2. Routing question...")
-
-    route = route_question(
-        question
-    )
-
-    if verbose:
-        print(f"✓ Route: {route}")
-
-    # =====================================
     # FORMAT SITE CONTEXT
     # =====================================
 
     if verbose:
-        print("\n3. Formatting site context...")
+        print("\n2. Formatting site context...")
 
     site_context = format_site_context(
         site
@@ -98,37 +124,76 @@ def run_query_pipeline(
         print("✓ Site context ready")
 
     # =====================================
-    # RETRIEVE CHUNKS
+    # CONDITIONAL LEGAL RETRIEVAL
     # =====================================
 
-    if verbose:
-        print("\n4. Retrieving zoning text...")
+    retrieved_chunks = []
 
-    retrieved_chunks = retrieve_chunks(
+    if query_type in [
 
-        question=question,
+        "LEGAL",
 
-        top_k=top_k,
+        "HYBRID"
+    ]:
 
-        threshold=threshold
-    )
+        if verbose:
+            print("\n3. Retrieving zoning text...")
 
-    if verbose:
+        retrieved_chunks = retrieve_chunks(
 
-        print(
-            f"✓ Retrieved "
-            f"{len(retrieved_chunks)} chunks"
+            question=question,
+
+            top_k=top_k,
+
+            threshold=threshold
         )
+
+        if verbose:
+
+            print(
+                f"✓ Retrieved "
+                f"{len(retrieved_chunks)} chunks"
+            )
+
+            print(
+                "\nDEBUG RETRIEVED CHUNKS:\n"
+            )
+
+            for chunk in retrieved_chunks:
+
+                print(
+
+                    f"- "
+                    f"{chunk.get('section_id')} "
+                    f"({chunk.get('retrieval_type')})"
+                )
+
+    else:
+
+        if verbose:
+
+            print(
+                "\n3. Skipping zoning retrieval "
+                "(FACTUAL query)"
+            )
+
+    # =====================================
+    # CHECK RETRIEVAL CONTEXT
+    # =====================================
+
+    has_retrieval_context = (
+        len(retrieved_chunks) > 0
+    )
 
     # =====================================
     # VINTAGE WARNINGS
     # =====================================
 
     if verbose:
-        print("\n5. Running vintage checks...")
+        print("\n4. Running legal checks...")
 
     warnings = generate_vintage_warnings(
-        retrieved_chunks
+        retrieved_chunks=retrieved_chunks
     )
 
     if verbose:
@@ -139,37 +204,62 @@ def run_query_pipeline(
         )
 
     # =====================================
-    # BUILD PROMPT
+    # BUILD PROMPT PAYLOAD
     # =====================================
 
     if verbose:
-        print("\n6. Building prompt...")
+        print("\n5. Building prompts...")
 
-    prompt = build_prompt(
+    prompt_payload = build_prompt_payload(
 
-        question=question,
+        user_question=
+        question,
 
-        route=route,
+        retrieved_chunks=
+        retrieved_chunks,
 
-        site_context=site_context,
+        vintage_warnings=
+        warnings,
 
-        retrieved_chunks=retrieved_chunks,
+        has_retrieval_context=
+        has_retrieval_context,
 
-        warnings=warnings
+        query_type=
+        query_type
+    )
+
+    system_prompt = prompt_payload[
+        "system_prompt"
+    ]
+
+    user_prompt = prompt_payload[
+        "user_prompt"
+    ]
+
+    full_prompt = assemble_full_prompt(
+
+        system_prompt=
+        system_prompt,
+
+        user_prompt=
+        user_prompt,
+
+        site_context=
+        site_context
     )
 
     if verbose:
-        print("✓ Prompt assembled")
+        print("✓ Prompt assembly complete")
 
     # =====================================
     # GENERATE RESPONSE
     # =====================================
 
     if verbose:
-        print("\n7. Querying Ollama...")
+        print("\n6. Querying Ollama...")
 
     response = generate_response(
-        prompt=prompt
+        prompt=full_prompt
     )
 
     if verbose:
@@ -179,12 +269,14 @@ def run_query_pipeline(
     # DETERMINISTIC CITATIONS
     # =====================================
 
-    response = replace_citation_placeholders(
+    if has_retrieval_context:
 
-        response=response,
+        response = replace_citation_placeholders(
 
-        retrieved_chunks=retrieved_chunks
-    )
+            response=response,
+
+            retrieved_chunks=retrieved_chunks
+        )
 
     # =====================================
     # WRITE LOG
@@ -195,15 +287,13 @@ def run_query_pipeline(
     if save_logs:
 
         if verbose:
-            print("\n8. Writing log file...")
+            print("\n7. Writing log file...")
 
         log_path = write_log(
 
             bbl=bbl,
 
             question=question,
-
-            route=route,
 
             retrieved_chunks=retrieved_chunks,
 
@@ -213,10 +303,13 @@ def run_query_pipeline(
         )
 
         if verbose:
-            print(f"✓ Log saved: {log_path}")
+            print(
+                f"✓ Log saved: "
+                f"{log_path}"
+            )
 
     # =====================================
-    # RETURN STRUCTURED RESULT
+    # RETURN RESULT
     # =====================================
 
     return {
@@ -227,8 +320,8 @@ def run_query_pipeline(
         "question":
         question,
 
-        "route":
-        route,
+        "query_type":
+        query_type,
 
         "site":
         site,
@@ -242,8 +335,14 @@ def run_query_pipeline(
         "warnings":
         warnings,
 
-        "prompt":
-        prompt,
+        "system_prompt":
+        system_prompt,
+
+        "user_prompt":
+        user_prompt,
+
+        "full_prompt":
+        full_prompt,
 
         "response":
         response,
@@ -258,10 +357,6 @@ def run_query_pipeline(
 # =====================================================
 
 def main():
-
-    # =====================================
-    # CLI ARGUMENTS
-    # =====================================
 
     parser = argparse.ArgumentParser(
 
@@ -307,7 +402,7 @@ def main():
 
         type=float,
 
-        default=0.55,
+        default=0.80,
 
         help="Similarity threshold"
     )

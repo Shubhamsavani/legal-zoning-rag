@@ -67,7 +67,7 @@ threshold = st.sidebar.slider(
 
     max_value=1.0,
 
-    value=0.55
+    value=0.80
 )
 
 show_prompt = st.sidebar.checkbox(

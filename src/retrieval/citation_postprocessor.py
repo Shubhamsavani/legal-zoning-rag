@@ -1,18 +1,96 @@
 import re
 
 
-def replace_citation_placeholders(
+# =====================================================
+# FORMAT SINGLE CITATION
+# =====================================================
 
-    response: str,
+def format_citation(
+
+    chunk: dict
+):
+
+    section_id = chunk.get(
+        "section_id",
+        "UNKNOWN"
+    )
+
+    section_title = chunk.get(
+        "section_title",
+        "Unknown Section"
+    )
+
+    retrieval_type = chunk.get(
+        "retrieval_type",
+        "semantic"
+    )
+
+    # =================================================
+    # SHORT RETRIEVAL LABEL
+    # =================================================
+
+    if retrieval_type == "dependency":
+
+        retrieval_label = (
+            "dependency"
+        )
+
+    else:
+
+        retrieval_label = (
+            "semantic"
+        )
+
+    # =================================================
+    # HISTORICAL WARNING
+    # =================================================
+
+    historical_warning = ""
+
+    if (
+        chunk.get(
+            "is_historical"
+        )
+        ==
+        "true"
+    ):
+
+        historical_warning = (
+            " | historical"
+        )
+
+    # =================================================
+    # FINAL FORMAT
+    # =================================================
+
+    formatted = (
+
+        f"[{section_id}"
+
+        f" — "
+
+        f"{section_title}"
+
+        f" | "
+
+        f"{retrieval_label}"
+
+        f"{historical_warning}]"
+    )
+
+    return formatted
+
+
+# =====================================================
+# BUILD CITATION LOOKUP
+# =====================================================
+
+def build_citation_lookup(
 
     retrieved_chunks: list
-) -> str:
+):
 
-    # =====================================
-    # Build citation lookup table
-    # =====================================
-
-    citation_lookup = {}
+    lookup = {}
 
     for chunk in retrieved_chunks:
 
@@ -20,40 +98,34 @@ def replace_citation_placeholders(
             "citation_id"
         )
 
-        source_file = chunk.get(
-            "source_file",
-            "unknown"
+        lookup[citation_id] = (
+            format_citation(chunk)
         )
 
-        section_title = chunk.get(
-            "section_title",
-            "unknown"
+    return lookup
+
+
+# =====================================================
+# REPLACE PLACEHOLDERS
+# =====================================================
+
+def replace_citation_placeholders(
+
+    response: str,
+
+    retrieved_chunks: list
+):
+
+    citation_lookup = (
+
+        build_citation_lookup(
+            retrieved_chunks
         )
+    )
 
-        start_line = chunk.get(
-            "start_line",
-            "?"
-        )
-
-        end_line = chunk.get(
-            "end_line",
-            "?"
-        )
-
-        formatted_citation = (
-
-            f"[{section_title} | "
-            f"{source_file} | "
-            f"lines {start_line}-{end_line}]"
-        )
-
-        citation_lookup[
-            citation_id
-        ] = formatted_citation
-
-    # =====================================
-    # Replace placeholders
-    # =====================================
+    # =================================================
+    # REPLACEMENT FUNCTION
+    # =================================================
 
     def replace_match(match):
 
@@ -65,6 +137,10 @@ def replace_citation_placeholders(
 
             f"[UNKNOWN_CITATION:{citation_id}]"
         )
+
+    # =================================================
+    # REPLACE ALL PLACEHOLDERS
+    # =================================================
 
     processed_response = re.sub(
 
@@ -78,16 +154,23 @@ def replace_citation_placeholders(
     return processed_response
 
 
-# =====================================
+# =====================================================
 # TEST BLOCK
-# =====================================
+# =====================================================
 
 if __name__ == "__main__":
 
     fake_response = (
 
-        "Rear yard depth is 30 feet "
-        "[SOURCE_1]."
+        "Rear yard depth requirements "
+
+        "apply in R1 through R10 "
+
+        "districts [SOURCE_1]. "
+
+        "Permitted obstructions may "
+
+        "also apply [SOURCE_2]."
     )
 
     retrieved_chunks = [
@@ -97,25 +180,50 @@ if __name__ == "__main__":
             "citation_id":
             "SOURCE_1",
 
-            "source_file":
-            "zr_03_rear_yard_requirements.md",
+            "section_id":
+            "23-342",
 
             "section_title":
-            "Section 23-34",
+            "Rear Yard Requirements",
 
-            "start_line":
-            2,
+            "retrieval_type":
+            "semantic",
 
-            "end_line":
-            23
+            "is_historical":
+            "false"
+        },
+
+        {
+
+            "citation_id":
+            "SOURCE_2",
+
+            "section_id":
+            "23-341",
+
+            "section_title":
+            "Permitted Obstructions",
+
+            "retrieval_type":
+            "dependency",
+
+            "is_historical":
+            "false"
         }
     ]
 
-    processed = replace_citation_placeholders(
+    processed = (
 
-        response=fake_response,
+        replace_citation_placeholders(
 
-        retrieved_chunks=retrieved_chunks
+            response=
+            fake_response,
+
+            retrieved_chunks=
+            retrieved_chunks
+        )
     )
+
+    print("\n=== PROCESSED RESPONSE ===\n")
 
     print(processed)

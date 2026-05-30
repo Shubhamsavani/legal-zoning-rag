@@ -1,350 +1,472 @@
-def build_prompt(
-    question: str,
-    route: str,
-    site_context: str,
-    retrieved_chunks: list,
-    warnings: list
-) -> str:
+from datetime import datetime
 
-    prompt_parts = []
+from typing import Optional
 
-    # =================================================
-    # SYSTEM INSTRUCTIONS
-    # =================================================
 
-    prompt_parts.append(
-        "You are an NYC zoning and land-use "
-        "analysis assistant."
-    )
+# =====================================================
+# FORMAT RETRIEVED CHUNKS
+# =====================================================
 
-    prompt_parts.append(
-        "Answer ONLY using the provided "
-        "site data and retrieved zoning text."
-    )
+def format_retrieved_chunks(
 
-    prompt_parts.append(
-        "Do NOT invent regulations, "
-        "definitions, zoning permissions, "
-        "or legal conclusions."
-    )
+    retrieved_chunks: list
+):
 
-    prompt_parts.append(
-        "Do NOT assume regulations do not "
-        "exist merely because relevant "
-        "sections were not retrieved."
-    )
+    semantic_chunks = []
 
-    prompt_parts.append(
-        "Absence of retrieved evidence "
-        "is NOT evidence that no regulation "
-        "exists."
-    )
-
-    prompt_parts.append(
-        "If information is missing, "
-        "say explicitly that the corpus "
-        "does not contain enough information."
-    )
-
-    prompt_parts.append(
-        "If retrieved sections only discuss "
-        "certain zoning districts, do not "
-        "generalize those rules to other "
-        "district types unless explicitly "
-        "stated in the retrieved text."
-    )
-
-    prompt_parts.append(
-        "If a section explicitly states "
-        "applicable zoning districts, "
-        "do not apply those regulations "
-        "to other district types unless "
-        "the retrieved text explicitly "
-        "authorizes that extension."
-    )
-
-    prompt_parts.append(
-        "Do not infer that a regulation "
-        "is permitted, prohibited, or "
-        "inapplicable unless the retrieved "
-        "text explicitly supports that conclusion."
-    )
-    
-    prompt_parts.append(
-        "When district applicability is "
-        "unclear, state that applicability "
-        "cannot be determined from the "
-        "retrieved corpus."
-    )
-
-    prompt_parts.append(
-        "Distinguish clearly between "
-        "what the retrieved text states "
-        "and what the corpus may simply "
-        "not contain."
-    )
-
-    prompt_parts.append(
-        "Always mention uncertainty when "
-        "retrieved documents are historical, "
-        "superseded, incomplete, or when "
-        "important referenced sections "
-        "are missing from the corpus."
-    )
-
-    prompt_parts.append(
-        "Mention referenced-but-missing "
-        "sections when they materially "
-        "affect the answer."
-    )
-
-    prompt_parts.append(
-        "Cite relevant section titles "
-        "and section numbers whenever possible."
-    )
-
-    prompt_parts.append(
-        "When using retrieved evidence "
-        "in your answer, cite the "
-        "corresponding Citation ID "
-        "in square brackets like "
-        "[SOURCE_1]."
-    )
-
-    prompt_parts.append(
-        "Do NOT invent citations, "
-        "line numbers, filenames, "
-        "or section references."
-    )
-
-    prompt_parts.append(
-        "Only use Citation IDs that were "
-        "explicitly provided in the "
-        "retrieved zoning text."
-    )
+    dependency_chunks = []
 
     # =================================================
-    # ROUTING MODE
+    # SPLIT BY RETRIEVAL TYPE
     # =================================================
-
-    prompt_parts.append(
-        f"\n=== QUERY TYPE ===\n{route.upper()}"
-    )
-
-    # =================================================
-    # SITE CONTEXT
-    # =================================================
-
-    prompt_parts.append(
-        f"\n=== SITE CONTEXT ===\n"
-    )
-
-    prompt_parts.append(site_context)
-
-    # =================================================
-    # VINTAGE WARNINGS
-    # =================================================
-
-    if warnings:
-
-        prompt_parts.append(
-            "\n=== IMPORTANT WARNINGS ==="
-        )
-
-        for warning in warnings:
-
-            prompt_parts.append(
-                f"- {warning}"
-            )
-
-    # =================================================
-    # RETRIEVED ZONING TEXT
-    # =================================================
-
-    prompt_parts.append(
-        "\n=== RETRIEVED ZONING TEXT ==="
-    )
 
     for chunk in retrieved_chunks:
 
-        citation_id = chunk.get(
-            "citation_id",
-            "UNKNOWN_SOURCE"
+        retrieval_type = chunk.get(
+            "retrieval_type",
+            "semantic"
         )
 
-        source_file = chunk.get(
-            "source_file",
-            "unknown"
+        formatted_chunk = (
+
+            f"{chunk['citation_id']}\n"
+
+            f"Retrieval Type: "
+            f"{retrieval_type}\n"
+
+            f"Section ID: "
+            f"{chunk['section_id']}\n"
+
+            f"Section Title: "
+            f"{chunk['section_title']}\n"
+
+            f"Source File: "
+            f"{chunk['source_file']}\n"
+
+            f"Last Amended: "
+            f"{chunk['last_amended']}\n"
+
+            f"District Scope: "
+            f"{chunk['district_scope']}\n"
+            +
+            (
+                f"Cross References: "
+                f"{chunk['cross_refs']}\n"
+
+                if chunk["cross_refs"] != "NONE"
+
+                else ""
+            )
+            + "\n"
+            +
+            (
+                "WARNING: HISTORICAL / "
+                "SUPERSEDED PROVISION\n\n"
+
+                if chunk.get(
+                    "is_historical"
+                ) == "true"
+
+                else ""
+            )
+            +
+            f"{chunk['text']}"
         )
 
-        section_title = chunk.get(
-            "section_title",
-            "unknown"
+        if retrieval_type == "dependency":
+
+            dependency_chunks.append(
+                formatted_chunk
+            )
+
+        else:
+
+            semantic_chunks.append(
+                formatted_chunk
+            )
+
+    # =================================================
+    # BUILD FINAL CONTEXT
+    # =================================================
+
+    context_sections = []
+
+    # -------------------------------------------------
+    # PRIMARY MATCHES
+    # -------------------------------------------------
+
+    if semantic_chunks:
+
+        semantic_block = (
+
+            "=== PRIMARY LEGAL MATCHES ===\n\n"
+
+            +
+
+            "\n\n".join(semantic_chunks)
         )
 
-        last_amended = chunk.get(
-            "last_amended",
-            "unknown"
+        context_sections.append(
+            semantic_block
         )
 
-        start_line = chunk.get(
-            "start_line",
-            "unknown"
+    # -------------------------------------------------
+    # DEPENDENCY REFERENCES
+    # -------------------------------------------------
+
+    if dependency_chunks:
+
+        dependency_block = (
+
+            "=== DEPENDENCY REFERENCES ===\n\n"
+
+            "The following sections were "
+
+            "referenced by the primary "
+
+            "legal matches and may provide "
+
+            "supporting legal context.\n\n"
+
+            +
+
+            "\n\n".join(dependency_chunks)
         )
 
-        end_line = chunk.get(
-            "end_line",
-            "unknown"
+        context_sections.append(
+            dependency_block
         )
 
-        distance = chunk.get(
-            "distance",
-            "unknown"
-        )
+    return "\n\n".join(
+        context_sections
+    )
 
-        text = chunk.get(
-            "text",
-            ""
-        )
 
-        prompt_parts.append(
-            f"""
---------------------------------------------------
-Citation ID:
-{citation_id}
+# =====================================================
+# BUILD SYSTEM PROMPT
+# =====================================================
 
-Source File:
-{source_file}
+def build_system_prompt():
 
-Section:
-{section_title}
+    current_date = datetime.now().strftime(
+        "%B %d, %Y"
+    )
 
-Last Amended:
-{last_amended}
+    return f"""
+You are a legal zoning research assistant.
 
-Lines:
-{start_line}-{end_line}
+Today's date is {current_date}.
 
-Similarity Distance:
-{distance}
+Your job is to answer questions using:
+1. Structured site/property data
+2. Retrieved zoning resolution context
 
-Retrieved Text:
-{text}
---------------------------------------------------
+Grounding Rules:
+
+- Structured site data is the authoritative source for factual property information such as:
+  - zoning district
+  - FAR
+  - flood zone
+  - lot area
+  - demographics
+  - building characteristics
+  - year built
+  - population density
+
+- Use zoning markdown retrieval ONLY when legal interpretation, zoning rules, restrictions, permitted uses, setbacks, yard regulations, overlays, or regulatory reasoning are required.
+
+- Base your reasoning strictly on the retrieved legal text when legal retrieval is provided.
+
+- Never reference legal section numbers, article names, zoning provisions, or building code provisions unless they explicitly appear in the retrieved context.
+
+- Do not use external legal knowledge or pretrained zoning knowledge beyond the retrieved context.
+
+- If no retrieved legal sections are available, answer ONLY from structured site data and do not invent zoning rules.
+
+- If the retrieved context is insufficient, explicitly state that the corpus does not contain enough information instead of inventing legal provisions.
+
+- Prefer concise, structured, professional explanations over conversational language.
 """
+
+
+# =====================================================
+# BUILD USER PROMPT
+# =====================================================
+
+def build_user_prompt(
+
+    user_question: str,
+
+    retrieved_chunks: list,
+
+    vintage_warnings: Optional[list] = None,
+
+    has_retrieval_context: bool = True,
+
+    query_type: str = "LEGAL"
+):
+
+    # =================================================
+    # FORMAT CONTEXT
+    # =================================================
+
+    formatted_context = (
+        format_retrieved_chunks(
+            retrieved_chunks
+        )
+    )
+
+    # =================================================
+    # WARNINGS
+    # =================================================
+
+    warning_block = ""
+
+    if vintage_warnings:
+
+        warning_block = (
+
+            "=== LEGAL / TEMPORAL WARNINGS ===\n\n"
+
+            +
+
+            "\n".join(
+                f"- {warning}"
+                for warning in vintage_warnings
+            )
+
+            +
+
+            "\n\n"
         )
 
     # =================================================
-    # USER QUESTION
+    # QUERY-TYPE INSTRUCTIONS
     # =================================================
 
-    prompt_parts.append(
-        "\n=== USER QUESTION ==="
-    )
+    if query_type == "FACTUAL":
 
-    prompt_parts.append(question)
+        query_instruction = (
+
+            "This is a FACTUAL query.\n\n"
+
+            "Use ONLY structured site/property "
+            "data unless legal retrieval is "
+            "explicitly necessary.\n\n"
+
+            "Do not invent zoning regulations "
+            "or legal provisions."
+        )
+
+    elif query_type == "HYBRID":
+
+        query_instruction = (
+
+            "This is a HYBRID query.\n\n"
+
+            "Use structured site/property "
+            "data for factual attributes and "
+            "retrieved zoning context for "
+            "legal interpretation."
+        )
+
+    else:
+
+        query_instruction = (
+
+            "This is a LEGAL query.\n\n"
+
+            "Prioritize retrieved zoning "
+            "context and legal applicability."
+        )
 
     # =================================================
-    # RESPONSE INSTRUCTIONS
+    # CITATION POLICY
     # =================================================
 
-    prompt_parts.append(
-        "\n=== RESPONSE INSTRUCTIONS ==="
+    if has_retrieval_context:
+
+        citation_instruction = (
+
+            "Use citation IDs like "
+            "[SOURCE_1] when citing "
+            "retrieved zoning provisions."
+        )
+
+    else:
+
+        citation_instruction = (
+
+            "Do not generate legal citations "
+            "if no retrieved zoning sections "
+            "are provided."
+        )
+
+    # =================================================
+    # RESPONSE RULES
+    # =================================================
+
+    response_rules = """
+
+1. Explain directly applicable zoning rules first.
+2. Use dependency references only if relevant.
+3. Mention important district limitations or exceptions.
+4. Mention if any referenced provision appears historical or superseded.
+5. If the context is incomplete, say what additional information may be needed.
+6. If a retrieved provision applies to a broader district range (for example "R1 through R10"), you may infer that explicitly included districts within that range are covered unless the retrieved text states otherwise.
+7. Do not reject applicability merely because the queried district is not separately named if it is clearly included within a retrieved district range.
+8. Prefer reasonable interpretation of explicitly retrieved zoning ranges over overly cautious refusal to answer.
+9. Never invent legal citations or section numbers.
+10. Never introduce external zoning provisions or building code references.
+"""
+
+    # =================================================
+    # FINAL USER PROMPT
+    # =================================================
+
+    return f"""
+{warning_block}
+
+=== QUERY TYPE ===
+
+{query_type}
+
+
+=== QUERY STRATEGY ===
+
+{query_instruction}
+
+
+=== USER QUESTION ===
+
+{user_question}
+
+
+=== RETRIEVED LEGAL CONTEXT ===
+
+{formatted_context}
+
+
+=== RESPONSE INSTRUCTIONS ===
+
+Provide a grounded answer using the available evidence.
+
+Citation Policy:
+- {citation_instruction}
+
+Requirements:
+
+{response_rules}
+
+Now provide the final answer.
+"""
+
+
+# =====================================================
+# BUILD FULL PROMPT PAYLOAD
+# =====================================================
+
+def build_prompt_payload(
+
+    user_question: str,
+
+    retrieved_chunks: list,
+
+    vintage_warnings: Optional[list] = None,
+
+    has_retrieval_context: bool = True,
+
+    query_type: str = "LEGAL"
+):
+
+    system_prompt = build_system_prompt()
+
+    user_prompt = build_user_prompt(
+
+        user_question=
+        user_question,
+
+        retrieved_chunks=
+        retrieved_chunks,
+
+        vintage_warnings=
+        vintage_warnings,
+
+        has_retrieval_context=
+        has_retrieval_context,
+
+        query_type=
+        query_type
     )
 
-    prompt_parts.append(
-        "Provide a concise but legally "
-        "careful answer."
-    )
+    return {
 
-    prompt_parts.append(
-        "Separate factual site data from "
-        "zoning interpretation."
-    )
+        "system_prompt":
+        system_prompt,
 
-    prompt_parts.append(
-        "Do not claim certainty where "
-        "the corpus is incomplete."
-    )
-
-    prompt_parts.append(
-        "Mention referenced-but-missing "
-        "sections if they materially affect "
-        "the answer."
-    )
-
-    prompt_parts.append(
-        "When making a factual or legal "
-        "statement derived from retrieved "
-        "text, include the corresponding "
-        "Citation ID like [SOURCE_1]."
-    )
-
-    prompt_parts.append(
-        "Do not use Citation IDs unless "
-        "the answer actually relied on "
-        "that retrieved text."
-    )
-
-    return "\n".join(prompt_parts)
+        "user_prompt":
+        user_prompt
+    }
 
 
-# =================================================
+# =====================================================
 # TEST BLOCK
-# =================================================
-
-from src.site.lookup import lookup_site
-
-from src.site.formatter import (
-    format_site_context
-)
-
-from src.routing.router import (
-    route_question
-)
-
-from src.retrieval.retriever import (
-    retrieve_chunks
-)
-
-from src.retrieval.vintage_checks import (
-    generate_vintage_warnings
-)
-
+# =====================================================
 
 if __name__ == "__main__":
 
-    question = (
-        "What are the rear yard "
-        "requirements for this site?"
+    fake_chunks = [
+
+        {
+
+            "citation_id":
+            "SOURCE_1",
+
+            "retrieval_type":
+            "semantic",
+
+            "section_id":
+            "23-342",
+
+            "section_title":
+            "Rear Yard Requirements",
+
+            "source_file":
+            "zr_03_rear_yard_requirements.md",
+
+            "last_amended":
+            "5/12/2021",
+
+            "district_scope":
+            "R1 through R10",
+
+            "cross_refs":
+            "23-341|23-344",
+
+            "text":
+            "Rear yard regulations ..."
+        }
+    ]
+
+    payload = build_prompt_payload(
+
+        user_question=
+        "What are rear yard requirements?",
+
+        retrieved_chunks=
+        fake_chunks,
+
+        query_type=
+        "LEGAL",
+
+        has_retrieval_context=
+        True
     )
 
-    route = route_question(question)
+    print("\n=== SYSTEM PROMPT ===\n")
 
-    site = lookup_site(
-        "4049630075"
-    )
+    print(payload["system_prompt"])
 
-    site_context = format_site_context(
-        site
-    )
+    print("\n=== USER PROMPT ===\n")
 
-    chunks = retrieve_chunks(
-        question=question,
-        top_k=5,
-        threshold=0.55
-    )
-
-    warnings = generate_vintage_warnings(
-        chunks
-    )
-
-    prompt = build_prompt(
-        question=question,
-        route=route,
-        site_context=site_context,
-        retrieved_chunks=chunks,
-        warnings=warnings
-    )
-
-    print(prompt[:8000])
+    print(payload["user_prompt"])
