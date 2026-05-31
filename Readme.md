@@ -24,7 +24,7 @@ The pipeline accepts a BBL + natural-language question, routes it through an LLM
 
 Due to file size constraints, the full corpus (including `corpus/structured/pluto_25v4.csv` and the generated Chroma index at `chroma_db/`) is **not included in this repository**. 
 
-📦 [Download the full data corpus from Google Drive](https://drive.google.com/file/d/1dAxcnZGMuo7Pd6kw_aXxo8hB-k5HJGnp/view?usp=sharing)
+📦 [Download the full data corpus from Google Drive](https://drive.google.com/drive/folders/1zpOObGJpvl9nBfaO348RA0aP3l_9089A?usp=sharing)
 
 After downloading, place the files as follows:
 
@@ -42,7 +42,6 @@ chroma_db/                  ← download from Drive
   section_graph.json        
   subsection_chunks.json    
 ```
-Drive link: [Google Drive](https://drive.google.com/drive/folders/1zpOObGJpvl9nBfaO348RA0aP3l_9089A?usp=sharing)
 ---
 
 ## Installation
