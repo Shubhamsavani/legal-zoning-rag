@@ -5,3 +5,6 @@ rich
 pandas
 requests
 numpy
+streamlit 
+pytest 
+rank-bm25
